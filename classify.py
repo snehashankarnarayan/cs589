@@ -5,17 +5,13 @@ import sys
 from time import time
 import csv
 from pprint import pprint
-from sklearn import neighbors, datasets
+from sklearn import neighbors
 from sklearn import svm
-from sklearn.neighbors import DistanceMetric
-from sklearn.neighbors import NearestNeighbors
 from sklearn import tree
-from sklearn.externals.six import StringIO
-from subprocess import call
-
 from sklearn.naive_bayes import GaussianNB
 from sklearn.lda import LDA
 from sklearn import linear_model
+from sklearn import ensemble
 
 #Dataset locations
 BEATS_TEST = ""
@@ -28,6 +24,85 @@ BLACKBOX_TEST = ""
 BEATS_TRAIN = ""
 dataset = ""
 
+def select_hyperparams(init_train):
+    #Randomly partition training data into 80:20 for training:test data for K fold cross validation
+    np.random.permutation(init_train.shape[0])
+    partition_index = int(0.8 * len(init_train))
+    training, test = init_train[:partition_index], init_train[partition_index:]
+
+    #Range of hyperparameters to be tested over
+    k_list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    metric_list = ["manhattan", "euclidean", "chebyshev"]
+
+    #Have a dictionary for keeping track of validation error
+    error_sums = dict()
+
+    #Implementing k fold with k = 10
+    K = 10
+    partition_index = int(len(training)/K)
+    prev = 0
+    for q in range(1, K+1):
+        #One block is used for validation
+        v = training[prev: q*partition_index]
+
+        #Getting the rest of the K - 1 blocks
+        if( q == 1):
+            tr = training[q*partition_index:]
+        else:
+            tr = training[0: prev]
+            for x in range(q*partition_index, len(training)):
+                tr = np.vstack([tr, training[x]])
+
+        #Separating the data vectors, labels for the training and test set for this fold
+        tr_data = tr[:,1:]
+        tr_class = tr[:, 0]
+        v_data = v[:,1:]
+        v_class = v[:, 0]
+
+        #Train for each set of hyperparameters
+        for k in k_list:
+            for metric in metric_list:
+                clf = neighbors.KNeighborsClassifier(n_neighbors = k, metric = metric)
+                clf.fit(tr_data, tr_class)
+                vals = clf.predict(v_data)
+                error = 0
+                for z in range(0, len(vals)):
+                    #Getting the number of wrong predictions
+                    a = 0
+                    b = 0
+                    a = a + vals[z]
+                    b = b + v_class[z]
+                    if(a != b):
+                        error = error + 1
+                error = error * 100 / len(v_class)
+
+                #Summing up the errors per hyperparameter set
+                t = tuple([k, metric])
+                if(error_sums.get(t) != None):
+                    error_sums[k, metric] = error_sums[k, metric] + error
+                else:
+                    error_sums[k, metric] = error
+        prev = q * partition_index
+
+    #Getting the final error percentages and minimum
+    min = sys.maxint
+    final_k = 0
+    final_metric = ""
+    for k in k_list:
+        for metric in metric_list:
+            error_sums[k, metric] = error_sums[k, metric] * 1.0 / K
+            if(error_sums[k, metric] < min):
+                min = error_sums[k, metric]
+                final_k = k
+                final_metric = metric
+
+    pprint(error_sums)
+    print final_k, final_metric
+
+    #Returning the final k value and final distance metric for KNN
+    return final_k, final_metric
+
+#Function that stores the paths of the dataset in my machine
 def load_mach():
     global BEATS_TEST, BEATS_TRAIN, BLACKBOX_TEST, BLACKBOX_TRAIN, SPAM_TRAIN, SPAM_TEST, SIGN_TRAIN, SIGN_TEST
     BEATS_TEST = '/Users/snehas/vagroot/shared_files/data/HW1DataDistribute/Beats/test_distribute.npy'
@@ -42,6 +117,7 @@ def load_mach():
     BLACKBOX_TEST = '/Users/snehas/vagroot/shared_files/data/HW1DataDistribute/BlackBox/test_distribute.npy'
     BLACKBOX_TRAIN = '/Users/snehas/vagroot/shared_files/data/HW1DataDistribute/BlackBox/train.npy'
 
+#Function that stores the paths of the dataset in my VM
 def load_vm():
     global BEATS_TEST, BEATS_TRAIN, BLACKBOX_TEST, BLACKBOX_TRAIN, SPAM_TRAIN, SPAM_TEST, SIGN_TRAIN, SIGN_TEST
     BEATS_TEST = '/home/vagrant/Desktop/shared_files/data/HW1DataDistribute/Beats/test_distribute.npy'
@@ -56,14 +132,8 @@ def load_vm():
     BLACKBOX_TEST = '/home/vagrant/Desktop/shared_files/data/HW1DataDistribute/BlackBox/test_distribute.npy'
     BLACKBOX_TRAIN = '/home/vagrant/Desktop/shared_files/data/HW1DataDistribute/BlackBox/train.npy'
 
-def show_output(data, classifier_name):
-    print classifier_name
-    pprint(data)
-    for d in data:
-        print d
-
+#Function to spit the output in an appropriately named CSV file
 def output(data, classifier_name):
-    #show_output(data, classifier_name)
     with open("output/" + dataset + "_" + classifier_name + ".csv", "wb") as csvfile:
         writer = csv.writer(csvfile, delimiter=',')
         writer.writerow(['ID','Category'])
@@ -81,15 +151,20 @@ def classify(test_location, train_location, classifier_name):
     test = np.load(test_location)
     test_data = test[:, 1:]
 
+    print 'Done loading data'
+
     #SVM
     if(classifier_name == "svm"):
-        clf = svm.SVC(C=100.0, cache_size=200, class_weight=None, coef0=0.0, degree=3,
-          gamma=0.001, max_iter=-1, probability=False,
-          random_state=None, shrinking=True, tol=0.001, verbose=False);
+        clf = svm.SVC();
+
+    #Decision tree
+    elif(classifier_name == "tree"):
+        clf = tree.DecisionTreeClassifier()
 
     #KNN Classifier
     elif(classifier_name == "knn"):
-        clf = neighbors.KNeighborsClassifier()
+        k, metric = select_hyperparams(train)
+        clf = neighbors.KNeighborsClassifier(n_neighbors = k, metric = metric)
 
     #LDA
     elif(classifier_name == "lda"):
@@ -103,13 +178,32 @@ def classify(test_location, train_location, classifier_name):
     elif(classifier_name == "lr"):
         clf = linear_model.LogisticRegression(C=1000)
 
+    #Place holder for any random classifier I want to try from sklearn.ensemble
+    elif(classifier_name == "rand"):
+        clf = ensemble.BaggingClassifier(base_estimator = neighbors.KNeighborsClassifier(n_neighbors = 4) , n_estimators = 23)
+
+    #Train the classifier and compute time taken
+    t1 = time()
     clf.fit(x_data, y_class)
-    output(clf.predict(test_data), classifier_name)
+    t2 = time()
+
+    print 'Training time taken in seconds: %f' %(t2-t1)
+
+    #Do the predictions and compute time taken
+    t3 = time()
+    out = clf.predict(test_data)
+    t4 = time()
+
+    print 'Prediction time taken in seconds: %f' %(t4-t3)
+
+    #Spit the output into CSV file
+    output(out, classifier_name)
 
 if __name__ == "__main__":
     global dataset
     t1 = time()
     dataset = sys.argv[1]
+    #Find out whether the code is running on vm or my machine
     if(sys.argv[3] == "vm"):
         load_vm()
     elif(sys.argv[3] == "mach"):
@@ -117,6 +211,7 @@ if __name__ == "__main__":
     else:
         exit()
 
+    #Run the required classification
     if sys.argv[1] == "beats":
         classify(BEATS_TEST, BEATS_TRAIN, sys.argv[2])
     elif sys.argv[1] == "spam":
