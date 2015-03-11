@@ -16,8 +16,6 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.feature_selection import *
 from sklearn.cross_validation import *
 import itertools
-from sklearn.metrics import *
-from sklearn.ensemble import *
 
 # Dataset locations
 CRIME_TEST = ""
@@ -26,10 +24,6 @@ FOREST_TEST = ""
 FOREST_TRAIN = ""
 
 dataset = ""
-
-#Code to select hyper parameters using cross validation
-
-
 
 
 #Function that stores the paths of the dataset in my machine
@@ -50,7 +44,7 @@ def load_vm():
     FOREST_TEST = '/home/vagrant/Desktop/shared_files/data/HW2DataDistribute/ForestFires/test_distribute.npy'
     FOREST_TRAIN = '/home/vagrant/Desktop/shared_files/data/HW2DataDistribute/ForestFires/train.npy'
 
-
+#Function that stores the paths of the dataset in the evaluators VM
 def load_eval():
     global CRIME_TEST, CRIME_TRAIN, FOREST_TEST, FOREST_TRAIN
     CRIME_TEST = '/vagrant/shared_files/data/HW2DataDistribute/CommunityCrime/test_distribute.npy'
@@ -68,43 +62,24 @@ def output(data, regression_method):
         for i in range(0, len(data)):
             writer.writerow(["{0:0.1f}".format(float(i+1)), "{0:0.1f}".format(data[i])])
 
-#Best subset selection
-def bestSubsetSelection(regress, data, y_class):
-    min_score = 99999
-    num_predictors = len(data[0]);
-    subset = []
-    scores = dict()
-    for k in range(0,num_predictors ):
-        print "Doing: " + str(k)
-        arr = itertools.combinations(range(num_predictors), k)
-        combinations = list(arr)
-        for item in combinations:
-            print item
-            x_data = np.delete(data, item, 1)
-            score = -cross_val_score(regress, x_data, y_class, cv = 5, scoring='mean_squared_error').mean()
-            scores[item] = score
-            if(score < min_score):
-                min_score = score
-                subset = item
-
-    pprint(scores)
-    print min_score, subset
-    return subset
-
+#Get the hyperparameters of the Support vector regression
 def get_hyperparams_svr(x_data, y_class):
     scores = dict()
-    kernel_list = ['rbf']
-    gamma_list = [0.001, 0, 0.01, 0.1, 0.5, 1, 2, 4]
-    epsilon_list = [0, 0.01, 0.1, 0.5, 1, 2, 4]
-    C_list = [0.5, 1, 2, 4, 10, 25, 50, 100, 200]
 
+    #Specify the values being searched over
+    kernel_list = ['rbf']
+    gamma_list = [0.00001, 0.001, 0.001, 0, 0.01]
+    epsilon_list = [0, 0.01, 0.1]
+    C_list = [1,0.2,0.3,0.4,0.5]
+
+    #Variables to store the final hyperparameters
     min_score = 9999.00
     max_kernel = ""
     max_gamma = -1.0
     max_epsilon = -1.0
     max_C = -1.0
 
-
+    #For every set of hyperparameters, perform cross-validation using MAE as scoring function
     for kernel in kernel_list:
         for gamma in gamma_list:
             for epsilon in epsilon_list:
@@ -120,28 +95,27 @@ def get_hyperparams_svr(x_data, y_class):
                         max_C = C
                         max_gamma = gamma
 
-    print "Table"
-    for kernel in kernel_list:
-        for gamma in gamma_list:
-            for epsilon in epsilon_list:
-                for C in C_list:
-                    print kernel + " & " + str(gamma) + " & " + str(epsilon) + " & " + str(C) + " & " + str(scores[kernel,gamma,epsilon,C]) + " \\\\"
 
-
+    #Printing the output
     print max_C, max_gamma, max_kernel, max_epsilon
     return max_C, max_gamma, max_kernel, max_epsilon
 
+#Get hyperparameters for KNN Regression
 def get_hyperparams_knn(x_data, y_class):
     scores = dict()
+
+    #Hyperparameter values searched over
     k_list = range(1,10)
     distance_list = ['manhattan', 'euclidean', 'chebyshev']
     weight_list = ['uniform', 'distance']
 
+    #Variables to store the final hyperparameters
     min_score = 9999.00
     max_k = 0
     max_distance = ""
     max_weight = ""
 
+    #For every set of hyperparameters, perform cross-validation using MSE as scoring function
     for k in k_list:
         for distance in distance_list:
             for weight in weight_list:
@@ -155,119 +129,164 @@ def get_hyperparams_knn(x_data, y_class):
                     max_distance = distance
                     max_weight = weight
 
-    print "Table"
-    for k in k_list:
-        for distance in distance_list:
-            for weight in weight_list:
-                print str(k) + " & " + distance + " & " + weight + " & " + str(scores[k,distance,weight]) + " \\\\"
-
-    print "Graph"
-    for distance in distance_list:
-        for weight in weight_list:
-            for k in k_list:
-                print str(k) + " " + distance + " " + weight + " " + str(scores[k,distance,weight])
-
+    #Printing and returing output
     print max_k, max_distance, max_weight
     return max_k, max_distance, max_weight
 
-
-def inbuiltSubsetSelection(regress, data, y_class):
-    print "Inbuilt subset feature selection"
-    min_score = 9999
-    num_predictors = len(data[0]);
+#Get hyperparameters for KNN Regression
+def get_hyperparams_rf(x_data, y_class):
     scores = dict()
-    for k in range(1, num_predictors ):
-        print "Doing: " + str(k)
-        x_data = SelectKBest(f_regression,k = k).fit_transform(data,y_class)
-        score = -cross_val_score(regress, x_data, y_class, scoring='mean_absolute_error').mean()
-        scores[k] = score
-        if(score < min_score):
-            min_score = score
-            subset_data = x_data
 
-    for k in range(0, len(data[0])):
-        print str(k) + " " + str(scores[k])
+    #Hyperparameter values searched over
+    depth_list = [None, 10, 50, 100, 250, 500, 1000]
+    n_estimators = [10,20]
+    features = ['auto', 'sqrt', 'log2']
 
-    print min_score
-    return subset_data
+    #Variables to store the final hyperparameters
+    min_score = 9999.00
+    max_n = 0
+    max_depth = 0
+    max_feature = ""
 
+    #For every set of hyperparameters, perform cross-validation using MSE as scoring function
+    for d in depth_list:
+        for n in n_estimators:
+            for f in features:
+                clf = ensemble.RandomForestRegressor(n_estimators=n, max_depth=d, max_features=f)
+                #print "Doing " + distance + ", " + str(k) + ", " + weight
+                score = -cross_val_score(clf, x_data, y_class, cv = 5, scoring='mean_squared_error').mean()
 
+                if(score < min_score):
+                    min_score = score
+                    max_n = n
+                    max_depth = d
+                    max_feature = f
+
+    #Printing and returing output
+    print max_n, max_depth, max_feature
+    return max_n, max_depth, max_feature
+
+#Functions for output transformation
+#Doing y = e^y - 0.01
 def anti_transform(data):
     for i in range(0, len(data)):
-        data[i] = math.exp(data[i]) - 0.0001
+        data[i] = math.exp(data[i]) - 0.01
     return data
 
+#Doing y = log(e + 0.01)
 def transform(data):
     for i in range(0, len(data)):
-        data[i] = math.log(data[i] + 0.0001)
+        data[i] = math.log(data[i] + 0.01)
     return data
-
-def get_score(regress, x_data, y_class):
-    regress.fit(x_data[:int(.85*len(x_data)),:], y_class[:int(.85*len(x_data))])
-    return regress.score(x_data[int(.85*len(x_data)+1):,:], y_class[int(.85*len(x_data)) + 1 :])
 
 #Backward stepwise selection
 def backwardStepwiseSelection(regress, data, y_class):
     print "Backward stepwise selection"
-    min_score = 9999
-    max_k = -1
+    min_score = 99999
+    max_k = []
     scores = dict()
-    for k in range(0, len(data[0])):
-        print "Doing: " + str(k)
-        x_data = np.delete(data, k, 1)
-        score = -cross_val_score(regress, x_data, y_class, scoring='mean_squared_error').mean()
-        scores[k] = score
-        if(score < min_score):
-            min_score = score
-            max_k = k
 
-    for k in range(0, len(data[0])):
-        print str(k) + " " + str(scores[k])
+    #Run for k = p-1 to 1; p = number of predictors
+    for k in range(len(data[0]) -1, 1, -1):
+        min_step_score = 99999
+        step_data = np.delete(data, k, 1)
+        score = -cross_val_score(regress, step_data, y_class, scoring='mean_absolute_error').mean()
+        if(score < min_step_score):
+            min_step_score = score
+            max_k = [k]
+        #Run from 0 to k, delete each feature and see which has the least error
+        for i in range(0, k):
+            print "Doing: " + str(k)
+            x_data = np.delete(step_data, i, 1)
+            score = -cross_val_score(regress, x_data, y_class, scoring='mean_absolute_error').mean()
+            if(score < min_step_score):
+                min_step_score = score
+                max_k = [k,i]
+        scores[k] = min_step_score
+        if(min_step_score < min_score):
+            min_score = min_step_score
 
-    print min_score, max_k
     return max_k
 
-#Regression function
+#Best subset selection
+def bestSubsetSelection(regress, data, y_class):
+    min_score = 99999
+    num_predictors = len(data[0]);
+    subset = []
+    scores = dict()
+    for k in range(0, num_predictors):
+        print "Doing: " + str(k)
+        #Get all combinations of pCk
+        arr = itertools.combinations(range(num_predictors), k)
+        combinations = list(arr)
+        min_step_score = 99999
+        #Run through all combinations and choose the one with least MAE
+        for item in combinations:
+            print item
+            x_data = np.delete(data, item, 1)
+            score = -cross_val_score(regress, x_data, y_class, cv = 5, scoring='mean_absolute_error').mean()
+            scores[k] = score
+            if(score < min_step_score):
+                min_step_score = score
+                subset = item
+        scores[k] = min_step_score
+        if(min_step_score < min_score):
+            min_score = min_step_score
+
+    #Printing the results
+    for k in range(0, num_predictors):
+        print str(k+1) + " " + str(scores[k])
+    print min_score, subset
+    return subset
+
+
+#Regression function. This is the main regression function, accepts the method,
+## train data location and test data location
 def regression(test_location, train_location, regression_method):
     train = np.load(train_location)
-    
+
     #Get the required training data
     x_data = train[:, 1:]  #All but the first column
     y_class = train[:, 0]
-
-    y_class = transform(y_class)
 
     #Get the test data
     test = np.load(test_location)
     test_data = test[:, 1:]
 
     #SVR
-    if (regression_method == "svr"):
-        #C, gamma, kernel, epsilon = get_hyperparams_svr(x_data, y_class)
-        #regress = SVR(kernel=kernel, C = C, gamma = gamma, epsilon=epsilon)
+    if(regression_method == "svr"):
         regress = SVR()
-        #regress = SVR(kernel='rbf', C = 0.5, gamma = 0.001, epsilon=0.01)
+        #Do feature selection
+        max_k = bestSubsetSelection(regress, x_data, y_class)
+        x_data = np.delete(x_data, max_k, 1)
+        test_data = np.delete(test_data, max_k, 1)
 
+        C, gamma, kernel, epsilon = get_hyperparams_svr(x_data, y_class)
+        regress = SVR(kernel=kernel, C = C, gamma = gamma, epsilon=epsilon)
 
-    if ( regression_method == "knn"):
+    #KNN
+    elif( regression_method == "knn"):
         #k, distance, weight = get_hyperparams_knn(x_data, y_class)
         #regress = neighbors.KNeighborsRegressor(n_neighbors = k, weights = weight, metric = distance)
         regress = neighbors.KNeighborsRegressor()
 
+    #Lasso linear regression
     elif (regression_method == "lin"):
         regress = LassoLarsCV()
 
+    #Decision tree regression
     elif (regression_method == "tree"):
         regress = DecisionTreeRegressor()
 
-    elif (regression_method == "gauss"):
-        regress = GaussianProcess(corr='cubic', theta0=1e-2, thetaL=1e-4, thetaU=1e-1,
-                     random_start=100)
-
-
     #Place holder for any random classifier I want to try from sklearn.ensemble
     elif (regression_method == "rand"):
-        regress = ensemble.BaggingRegressor(base_estimator = SVR(kernel='rbf', C = 25, gamma = 4, epsilon=4), n_estimators = 20)
+        regress = ensemble.RandomForestRegressor()
+        max_k = backwardStepwiseSelection(regress, x_data, y_class)
+        x_data = np.delete(x_data, max_k, 1)
+        test_data = np.delete(test_data, max_k, 1)
+        max_n, max_depth, max_feature = get_hyperparams_rf(x_data, y_class)
+        regress = ensemble.RandomForestRegressor(n_estimators=max_n, max_depth=max_depth, max_features=max_feature)
+        #regress = ensemble.BaggingRegressor(base_estimator = SVR())
 
 
     #Do feature selection
@@ -288,31 +307,30 @@ def regression(test_location, train_location, regression_method):
     out = regress.predict(test_data)
     t4 = time()
 
-    out = anti_transform(out)
     print 'Prediction time taken in seconds: %f' % (t4 - t3)
 
     #Spit the output into CSV file
     output(out, regression_method)
 
-def run(data, code_location, model):
+def run(data, model, code_location):
     global dataset
     t1 = time()
     dataset = data
     #Find out whether the code is running on vm or my machine or the evaluators machine
-    if (model == "vm"):
+    if (code_location == "vm"):
         load_vm()
-    elif (model == "mach"):
+    elif (code_location == "mach"):
         load_mach()
-    elif (model == "eval"):
+    elif (code_location == "eval"):
         load_eval()
     else:
         exit()
 
     #Run the required classification
     if data == "forest":
-        regression(FOREST_TEST, FOREST_TRAIN, code_location)
+        regression(FOREST_TEST, FOREST_TRAIN, model)
     elif data == "crime":
-        regression(CRIME_TEST, CRIME_TRAIN, code_location)
+        regression(CRIME_TEST, CRIME_TRAIN, model)
 
     t2 = time()
     print 'Time taken in seconds: %f' % (t2 - t1)

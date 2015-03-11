@@ -13,7 +13,7 @@ if __name__ == "__main__":
         os.makedirs(directory)
     dataset = sys.argv[1]
     if(dataset == "crime"):
-        run("crime", "eval", "knn" )
+        run("crime", "knn", "eval" )
     elif(dataset == "forest"):
-        run("forest","eval", "svr")
+        run("forest","svr", "eval")
 
