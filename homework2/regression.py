@@ -68,8 +68,8 @@ def get_hyperparams_svr(x_data, y_class):
 
     #Specify the values being searched over
     kernel_list = ['rbf']
-    gamma_list = [0.00001, 0.001, 0.001, 0, 0.01]
-    epsilon_list = [0, 0.01, 0.1]
+    gamma_list = [0.0001, 0.001, 0.001, 0, 0.01]
+    epsilon_list = [0, 0.01, 0.1, 0.2, 0.5]
     C_list = [1,0.2,0.3,0.4,0.5]
 
     #Variables to store the final hyperparameters
@@ -88,6 +88,7 @@ def get_hyperparams_svr(x_data, y_class):
                     print "Doing " + kernel + ", " + str(gamma) + ", " + str(C) + ", " + str(epsilon)
                     score = -cross_val_score(clf, x_data, y_class, cv = 5, scoring='mean_absolute_error').mean()
                     scores[kernel,gamma,epsilon,C] = score
+                    #Get least error
                     if(score < min_score):
                         min_score = score
                         max_kernel = kernel
@@ -120,9 +121,9 @@ def get_hyperparams_knn(x_data, y_class):
         for distance in distance_list:
             for weight in weight_list:
                 clf = neighbors.KNeighborsRegressor(n_neighbors = k, weights = weight, metric = distance)
-                #print "Doing " + distance + ", " + str(k) + ", " + weight
                 score = -cross_val_score(clf, x_data, y_class, cv = 5, scoring='mean_squared_error').mean()
                 scores[k, distance, weight] = score
+                #Get least error
                 if(score < min_score):
                     min_score = score
                     max_k = k
@@ -133,7 +134,7 @@ def get_hyperparams_knn(x_data, y_class):
     print max_k, max_distance, max_weight
     return max_k, max_distance, max_weight
 
-#Get hyperparameters for KNN Regression
+#Get hyperparameters for Random Forest Regression
 def get_hyperparams_rf(x_data, y_class):
     scores = dict()
 
@@ -153,9 +154,8 @@ def get_hyperparams_rf(x_data, y_class):
         for n in n_estimators:
             for f in features:
                 clf = ensemble.RandomForestRegressor(n_estimators=n, max_depth=d, max_features=f)
-                #print "Doing " + distance + ", " + str(k) + ", " + weight
                 score = -cross_val_score(clf, x_data, y_class, cv = 5, scoring='mean_squared_error').mean()
-
+                #Get least error
                 if(score < min_score):
                     min_score = score
                     max_n = n
@@ -190,15 +190,16 @@ def backwardStepwiseSelection(regress, data, y_class):
     for k in range(len(data[0]) -1, 1, -1):
         min_step_score = 99999
         step_data = np.delete(data, k, 1)
-        score = -cross_val_score(regress, step_data, y_class, scoring='mean_absolute_error').mean()
+        score = -cross_val_score(regress, step_data, y_class, scoring='mean_squared_error').mean()
         if(score < min_step_score):
             min_step_score = score
             max_k = [k]
-        #Run from 0 to k, delete each feature and see which has the least error
+        #Run from 0 to k, delete each feature and see which has the least MAE
         for i in range(0, k):
             print "Doing: " + str(k)
             x_data = np.delete(step_data, i, 1)
-            score = -cross_val_score(regress, x_data, y_class, scoring='mean_absolute_error').mean()
+            score = -cross_val_score(regress, x_data, y_class, scoring='mean_squared_error').mean()
+            #Get least error
             if(score < min_step_score):
                 min_step_score = score
                 max_k = [k,i]
@@ -206,6 +207,7 @@ def backwardStepwiseSelection(regress, data, y_class):
         if(min_step_score < min_score):
             min_score = min_step_score
 
+    #Return features to be deleted
     return max_k
 
 #Best subset selection
@@ -226,6 +228,7 @@ def bestSubsetSelection(regress, data, y_class):
             x_data = np.delete(data, item, 1)
             score = -cross_val_score(regress, x_data, y_class, cv = 5, scoring='mean_absolute_error').mean()
             scores[k] = score
+            #Get least error
             if(score < min_step_score):
                 min_step_score = score
                 subset = item
@@ -237,6 +240,8 @@ def bestSubsetSelection(regress, data, y_class):
     for k in range(0, num_predictors):
         print str(k+1) + " " + str(scores[k])
     print min_score, subset
+
+    #Return features to be deleted
     return subset
 
 
@@ -253,21 +258,21 @@ def regression(test_location, train_location, regression_method):
     test = np.load(test_location)
     test_data = test[:, 1:]
 
-    #SVR
-    if(regression_method == "svr"):
-        regress = SVR()
-        #Do feature selection
-        max_k = bestSubsetSelection(regress, x_data, y_class)
-        x_data = np.delete(x_data, max_k, 1)
-        test_data = np.delete(test_data, max_k, 1)
+    #Pipeline crime:
+    if(regression_method == "crime_pipe"):
+        regress = ensemble.BaggingRegressor(base_estimator = ensemble.RandomForestRegressor(random_state=1000, max_features='log2', max_depth=250), n_estimators = 20, random_state=1000)
 
+    #Pipeline forest
+    if(regression_method == "forest_pipe"):
         C, gamma, kernel, epsilon = get_hyperparams_svr(x_data, y_class)
         regress = SVR(kernel=kernel, C = C, gamma = gamma, epsilon=epsilon)
 
+    #SVR
+    if(regression_method == "svr"):
+        regress = SVR()
+
     #KNN
     elif( regression_method == "knn"):
-        #k, distance, weight = get_hyperparams_knn(x_data, y_class)
-        #regress = neighbors.KNeighborsRegressor(n_neighbors = k, weights = weight, metric = distance)
         regress = neighbors.KNeighborsRegressor()
 
     #Lasso linear regression
@@ -278,7 +283,7 @@ def regression(test_location, train_location, regression_method):
     elif (regression_method == "tree"):
         regress = DecisionTreeRegressor()
 
-    #Place holder for any random classifier I want to try from sklearn.ensemble
+    #Place holder for any random method I want to try from sklearn.ensemble
     elif (regression_method == "rand"):
         regress = ensemble.RandomForestRegressor()
         max_k = backwardStepwiseSelection(regress, x_data, y_class)
@@ -286,8 +291,6 @@ def regression(test_location, train_location, regression_method):
         test_data = np.delete(test_data, max_k, 1)
         max_n, max_depth, max_feature = get_hyperparams_rf(x_data, y_class)
         regress = ensemble.RandomForestRegressor(n_estimators=max_n, max_depth=max_depth, max_features=max_feature)
-        #regress = ensemble.BaggingRegressor(base_estimator = SVR())
-
 
     #Do feature selection
     #max_k = backwardStepwiseSelection(regress, x_data, y_class)
@@ -326,7 +329,7 @@ def run(data, model, code_location):
     else:
         exit()
 
-    #Run the required classification
+    #Run the required method
     if data == "forest":
         regression(FOREST_TEST, FOREST_TRAIN, model)
     elif data == "crime":
