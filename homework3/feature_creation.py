@@ -1,9 +1,23 @@
 #__author__ = 'snehas'
 
 from pyspark import SparkContext, SparkConf
+import Iterator
 import os
-import numpy
+import numpy as np
 import types
+
+
+def getFeatureMatrix(x_array):
+    x = np.matrix(x_array[2])
+    xt = np.matrix.transpose(x)
+    prod = np.multiply(x, xt)
+    return prod
+
+def getFeatureTargetProduct(x_array):
+    x = x_array[2]
+    y = x_array[3]
+    prod = np.multiply(x, y)
+    return prod
 
 def get_val_list(values):
     val_list = list()
@@ -21,7 +35,7 @@ def get_val_list(values):
 
 
 def getNumpyArray(s):
-    arr = numpy.zeros(18)
+    arr = np.zeros(18)
     target = 0.0
     arr[0] = 1
     keys = s[0]
@@ -32,36 +46,52 @@ def getNumpyArray(s):
             target = int(hour[1])
         else:
             arr[int(hour[0]) - 5] = int(hour[1])
-    return (keys, arr, target);
-
+    return (keys[0], keys[1], arr, target);
 
 conf = SparkConf().setAppName("app").setMaster("local[*]")
 sc = SparkContext(conf=conf)
 
+
 dirName = "/vagrant/shared_files/data/HW3Data/"
-files = os.listdir(dirName)
-rrdlist = list()
-hourlist = list()
+joined_rrd = sc.textFile(dirName + "6.txt")
+joined_rrd = joined_rrd.map(lambda x: ((x.split()[0], x.split()[1]), ["6", x.split()[2]]))
 
-for file in files:
-    hour = file.split('.')[0]
-    hourlist.append(hour)
-
-for i in range(0, len(files)):
-    filename = str(dirName)+str(files[i])
-    rrd = sc.textFile(filename).map(lambda x: ((x.split()[0], x.split()[1]), [hourlist[i], x.split()[2]]))
-    # Make sure hour is augmented properly
-    rrdlist.append(rrd)
-
-joined_rrd = rrdlist[0]
-
-for i in range(1, len(rrdlist)):
-    joined_rrd = joined_rrd.union(rrdlist[i])
-    if(joined_rrd.count() < rrdlist[i].count()):
-        joined_rrd = rrdlist[i].leftOuterJoin(joined_rrd)
+for i in range(7, 24):
+    filename = str(dirName)+ str(i) + ".txt"
+    rrd = sc.textFile(filename)
+    rrd = rrd.map(lambda x: ((x.split()[0], x.split()[1]), [str(i), x.split()[2]]))
+    if(joined_rrd.count() < rrd.count()):
+        joined_rrd = rrd.leftOuterJoin(joined_rrd)
     else:
-        joined_rrd = joined_rrd.leftOuterJoin(rrdlist[i])
+        joined_rrd = joined_rrd.leftOuterJoin(rrd)
+#     joined_rrd.count()
+#     joined_rrd.take(5)
+#
+#
+#
+#     #rrd.count()
+#     #rrd.take(1)
+#
+#     #rrdlist.append(rrd)
+#
+#     #rrdlist.append(sc.textFile(filename).map(lambda x: ((x.split()[0], x.split()[1]), [hourlist[i], x.split()[2]])))
+#
+#     if(i == 0):
+#         joined_rrd = rrd
+#     else:
+#         if(joined_rrd.count() < rrd.count()):
+#             joined_rrd = rrd.leftOuterJoin(joined_rrd)
+#         else:
+#             joined_rrd = joined_rrd.leftOuterJoin(rrd)
+#
+# joined_rrd = rrdlist[0]
+#
+# for i in range(1, len(rrdlist)):
+#     if(joined_rrd.count() < rrdlist[i].count()):
+#         joined_rrd = rrdlist[i].leftOuterJoin(joined_rrd)
+#     else:
+#         joined_rrd = joined_rrd.leftOuterJoin(rrdlist[i])
 
 final_rrd = joined_rrd.map(getNumpyArray)
-final_rrd.take(0)
+final_rrd.take(1)
 
