@@ -13,8 +13,12 @@ data_dir = ""
 #Optimal model
 global_k = 3
 global_rseed = 4
+
+#Specify data directories
 MACH = '/Users/snehas/vagroot/shared_files/data/HW4/'
 EVAL = '/vagrant/shared_files/data/HW4/'
+
+#Some globals
 Xtest = []
 Xtrain = []
 Xval = []
@@ -45,7 +49,7 @@ def load_data():
     Items   = np.load(data_dir + "items.npy")
     Genres  = np.load(data_dir + "genres.npy")
 
-
+#Used for Question 1
 def run_clustering(k, r):
     #Train k-Means on the training data
     model = kmeans.kmeans(n_clusters=k, random_seed=1000*r + 7, verbose=False)
@@ -67,6 +71,7 @@ def q1a():
     for k in k_list:
         tr_list = []
         val_list = []
+        #8 random restarts
         for r in range(0, 8):
             tr, val = run_clustering(k, r)
             tr_list.append(tr)
@@ -81,6 +86,7 @@ def q1b():
     min_rmse = 9999
     val_list = dict()
     for k in k_list:
+        #8 random restarts
         for r in range(0, 8):
             tr, val = run_clustering(k, r)
             if(val < min_rmse):
@@ -91,6 +97,7 @@ def q1b():
     print val_list
     print min_k, min_r, min_rmse
 
+#Compute RMSE using optimal model
 def q1b_rmse():
     model = get_model()
     #Predict the validation ratings and compute the RMSE
@@ -113,6 +120,30 @@ def get_zip_labels(l):
     zip_states[l.index('8')] = 'AZ, CO, ID, NM, NV, UT, WY'
     zip_states[l.index('9')] = 'AK, CA, HI, OR, WA'
     return zip_states
+
+#Get zipcode info
+def get_state_code(r):
+    if r=='0':
+        return 'CT, MA, ME, NH, NJ, NY, PR, RI, VT'
+    elif r=='1':
+        return 'DE, NY, PA '
+    elif r=='2':
+        return 'DC, MD, NC, SC, VA, WV'
+    elif r=='3':
+        return 'AL, FL, GA, MS, TN'
+    elif r=='4':
+        return 'IN, KY, MI, OH'
+    elif r=='5':
+        return 'IA, MN, MT, ND, SD, WI'
+    elif r=='6':
+        return 'IL, KS, MO, NE'
+    elif r=='7':
+        return 'AR, LA, OK, TX'
+    elif r=='8':
+        return 'AZ, CO, ID, NM, NV, UT, WY'
+    elif r=='9':
+        return 'AK, CA, HI, OR, WA'
+
 
 #Code for question 3
 def q3():
@@ -173,6 +204,7 @@ def q3():
         #Question 3c
         rating2_list = list(elem for elem in genre_list[i] if elem[0] <= 2.0)
         genre_count_list = np.zeros(len(Genres))
+        #Add up all genres
         for elem in rating2_list:
             genre_count_list = np.add(genre_count_list, elem[1])
         #Convert to percentage
@@ -190,12 +222,13 @@ def q3():
         fig.autofmt_xdate()
         fig.savefig('q3d_' + str(i) + '.eps')
 
-
+#Save optimal model.npy file
 def q4():
     model = get_model()
     filename = 'model.npy'
     np.save(filename, model.get_centers())
 
+#All code for question 2
 def q2():
     #Get the graph for data cases
     font = {'size'   : 8}
@@ -203,11 +236,14 @@ def q2():
     model = get_model()
     z = model.cluster(Xtest)
     freq = Counter(z)
+
+    #Get points for each cluster
     data = [freq[0],freq[1],freq[2]]
     fig = plt.figure()
     ax = plt.subplot(111)
     width=0.6
     clusters = range(0, global_k, 1)
+    #Put it in a graph
     ax.bar(np.arange(len(clusters)), data, width=width, color = '#C44441', align="center")
     ax.set_xticks(np.arange(len(clusters)) + width/2)
     ax.set_xticklabels(clusters)
@@ -260,12 +296,13 @@ def q2():
         plt.xticks(range(0,110,10))
         plt.title("Age of users in Cluster ID" + str(i))
         plt.xlabel("Age")
-        plt.ylabel("Frequency")
+        plt.ylabel("No of users")
         fig.savefig('q2b_' + str(i) + '.eps')
 
         #Question 2c
         plt.close()
         fig.clf()
+        #Get gender data
         freq = Counter(gender_list[i])
         data = [freq[0],freq[1]]
         fig = plt.figure()
@@ -277,15 +314,17 @@ def q2():
         ax.set_xticklabels(genders)
         plt.title("Gender of users in Cluster ID" + str(i))
         plt.xlabel("Gender")
-        plt.ylabel("Frequency")
+        plt.ylabel("No of users")
         fig.savefig('q2c_' + str(i) + '.eps')
 
         #Question 2d
         plt.close()
         fig.clf()
         freq = Counter(work_list[i])
-        freq_labels = freq.keys()
-        freq_values = freq.values()
+        #Do sorting for better charts
+        freq = freq.most_common()
+        freq_labels = [r[0] for r in freq]
+        freq_values = [r[1] for r in freq]
         fig = plt.figure()
         color=plt.cm.rainbow(np.linspace(0, 1, len(freq_labels)))
         plt.pie(freq_values, colors=color, startangle=90)
@@ -300,12 +339,17 @@ def q2():
         font = {'size'   : 8}
         plt.rc('font', **font)
         aggr_ziplist = list()
+        #Extract first digits
         for val in zip_list[i]:
             if(val[:1].isdigit()):
                 aggr_ziplist.append(val[:1])
         freq = Counter(aggr_ziplist)
-        freq_labels = get_zip_labels(freq.keys())
-        freq_values = freq.values()
+        freq = freq.most_common()
+        #Get the appropriate labels for the states
+        freq_labels = [get_state_code(r[0]) for r in freq]
+        freq_values = [r[1] for r in freq]
+        #freq_labels = get_zip_labels(freq.keys())
+        #freq_values = freq.values()
         fig = plt.figure()
         color=plt.cm.rainbow(np.linspace(0, 1, len(freq_labels)))
         plt.pie(freq_values, colors=color, autopct='%1.1f%%', startangle=90)
@@ -314,18 +358,20 @@ def q2():
         plt.title("Zipcodes of users in Cluster ID" + str(i))
         fig.savefig('q2e_' + str(i) + '.eps')
 
+#Main module for running code per question
 def cluster():
     print "Question 1a"
-    #q1a()
+    q1a()
     print "Question 1b"
-    #q1b()
+    q1b()
+    print 'RMSE on test data'
+    q1b_rmse()
     print "Question 2"
     q2()
     print "Question 3"
     q3()
     print "Question 4"
-    #q4()
-    #q1b_rmse()
+    q4()
 
 #Get model that is chosen
 def get_model():
