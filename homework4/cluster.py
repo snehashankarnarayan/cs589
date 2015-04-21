@@ -6,14 +6,13 @@ import sys
 import kmeans
 import numpy as np
 import matplotlib.pyplot as plt
-from scipy.stats import itemfreq
 from collections import Counter
-from pprint import pprint
-import random
 
 data_dir = ""
+
+#Optimal model
 global_k = 3
-global_rseed = 2
+global_rseed = 4
 MACH = '/Users/snehas/vagroot/shared_files/data/HW4/'
 EVAL = '/vagrant/shared_files/data/HW4/'
 Xtest = []
@@ -62,6 +61,7 @@ def run_clustering(k, r):
 
     return tr, val
 
+#Run kmeans for Train and Validation sets over a range of values for k and a range of random seeds
 def q1a():
     k_list = [2,3,4,5,6, 7, 11, 18, 25, 29, 50, 65, 80, 90, 100]
     for k in k_list:
@@ -73,6 +73,7 @@ def q1a():
             val_list.append(val)
         print("%d %.7f %.7f %.7f %.7f %.7f %.7f")%(k, max(tr_list), min(tr_list), np.mean(tr_list), max(val_list), min(val_list), np.mean(val_list))
 
+#Run kmeans over select values of k to figure out what's the optimal k
 def q1b():
     k_list = [2,3,4]
     min_k = 0
@@ -90,6 +91,15 @@ def q1b():
     print val_list
     print min_k, min_r, min_rmse
 
+def q1b_rmse():
+    model = get_model()
+    #Predict the validation ratings and compute the RMSE
+    XtestHat = model.predict(Xtrain, Xtest)
+    te = model.rmse(Xtest, XtestHat)
+    print te
+
+
+#Get the zipcode labels per state
 def get_zip_labels(l):
     zip_states = ["" for x in range(len(l))]
     zip_states[l.index('0')] = 'CT, MA, ME, NH, NJ, NY, PR, RI, VT'
@@ -104,6 +114,7 @@ def get_zip_labels(l):
     zip_states[l.index('9')] = 'AK, CA, HI, OR, WA'
     return zip_states
 
+#Code for question 3
 def q3():
     model = get_model()
     centers = model.get_centers()
@@ -118,6 +129,7 @@ def q3():
         movie_list[i] = list()
         genre_list[i] = list()
 
+    #Get the movie title and genre data
     for i in range(0, global_k):
         for j in range(0, len(centers[i])):
             tuple_item = (centers[i][j], Items[j][1])
@@ -138,14 +150,18 @@ def q3():
         #Question 3c
         rating4_list = list(elem for elem in genre_list[i] if elem[0] >= 4.0)
         genre_count_list = np.zeros(len(Genres))
+
+        #Add up all the genres
         for elem in rating4_list:
             genre_count_list = np.add(genre_count_list, elem[1])
+
+        #Convert to percentage
         genre_count_list = np.multiply(genre_count_list, 100.0/len(rating4_list))
         plt.close()
         fig = plt.figure()
         ax = plt.subplot(111)
         width=0.45
-        ax.bar(np.arange(len(Genres)), genre_count_list, width=width, color = 'chartreuse', align="center")
+        ax.bar(np.arange(len(Genres)), genre_count_list, width=width, color = '#009AB2', align="center")
         ax.set_xticks(np.arange(len(Genres)) + width/2)
         ax.set_xticklabels(Genres)
         plt.title("Percentage of 4+ rated movies in each Genre Cluster ID" + str(i))
@@ -159,12 +175,13 @@ def q3():
         genre_count_list = np.zeros(len(Genres))
         for elem in rating2_list:
             genre_count_list = np.add(genre_count_list, elem[1])
+        #Convert to percentage
         genre_count_list = np.multiply(genre_count_list, 100.0/len(rating2_list))
         plt.close()
         fig = plt.figure()
         ax = plt.subplot(111)
         width=0.6
-        ax.bar(np.arange(len(Genres)), genre_count_list, width=width, color = 'cyan', align="center")
+        ax.bar(np.arange(len(Genres)), genre_count_list, width=width, color = '#F48533', align="center")
         ax.set_xticks(np.arange(len(Genres)) + width/2)
         ax.set_xticklabels(Genres)
         plt.title("Percentage of 2- rated movies in each Genre Cluster ID" + str(i))
@@ -174,22 +191,32 @@ def q3():
         fig.savefig('q3d_' + str(i) + '.eps')
 
 
-
-
+def q4():
+    model = get_model()
+    filename = 'model.npy'
+    np.save(filename, model.get_centers())
 
 def q2():
+    #Get the graph for data cases
     font = {'size'   : 8}
     plt.rc('font', **font)
     model = get_model()
     z = model.cluster(Xtest)
+    freq = Counter(z)
+    data = [freq[0],freq[1],freq[2]]
     fig = plt.figure()
-    plt.hist(z, color='crimson', histtype='bar', bins = range(0,global_k+1,1), align='center')
-    plt.xticks(range(0,global_k+1,1))
+    ax = plt.subplot(111)
+    width=0.6
+    clusters = range(0, global_k, 1)
+    ax.bar(np.arange(len(clusters)), data, width=width, color = '#C44441', align="center")
+    ax.set_xticks(np.arange(len(clusters)) + width/2)
+    ax.set_xticklabels(clusters)
     plt.title("Number of data cases in each cluster")
     plt.xlabel("Cluster IDs")
     plt.ylabel("No of data cases")
     fig.savefig('q2a.eps')
 
+    #Initialize for Question 2b - 2e
     age_list = dict()
     gender_list = dict()
     work_list = dict()
@@ -229,7 +256,7 @@ def q2():
         fig.clf()
         data = age_list[i]
         fig = plt.figure()
-        plt.hist(data, bins=range(0,110,10), color='chartreuse', histtype='bar')
+        plt.hist(data, bins=range(0,110,10), color='#7A5892', histtype='bar')
         plt.xticks(range(0,110,10))
         plt.title("Age of users in Cluster ID" + str(i))
         plt.xlabel("Age")
@@ -245,7 +272,7 @@ def q2():
         ax = plt.subplot(111)
         width=0.6
         genders = ['Female','Male']
-        ax.bar(np.arange(len(genders)), data, width=width, color = 'chartreuse', align="center")
+        ax.bar(np.arange(len(genders)), data, width=width, color = '#7A5892', align="center")
         ax.set_xticks(np.arange(len(genders)) + width/2)
         ax.set_xticklabels(genders)
         plt.title("Gender of users in Cluster ID" + str(i))
@@ -261,8 +288,9 @@ def q2():
         freq_values = freq.values()
         fig = plt.figure()
         color=plt.cm.rainbow(np.linspace(0, 1, len(freq_labels)))
-        patches, text = plt.pie(freq_values, colors=color)
-        plt.legend(patches, freq_labels)
+        plt.pie(freq_values, colors=color, startangle=90)
+        plt.axis('equal')
+        plt.legend(freq_labels)
         plt.title("Occupation of users in Cluster ID" + str(i))
         fig.savefig('q2d_' + str(i) + '.eps')
 
@@ -280,18 +308,26 @@ def q2():
         freq_values = freq.values()
         fig = plt.figure()
         color=plt.cm.rainbow(np.linspace(0, 1, len(freq_labels)))
-        patches, text = plt.pie(freq_values, colors=color)
+        plt.pie(freq_values, colors=color, autopct='%1.1f%%', startangle=90)
         plt.axis('equal')
-        plt.legend(patches, freq_labels, loc = 'best')
+        plt.legend(freq_labels, loc = 'best')
         plt.title("Zipcodes of users in Cluster ID" + str(i))
         fig.savefig('q2e_' + str(i) + '.eps')
 
 def cluster():
+    print "Question 1a"
     #q1a()
+    print "Question 1b"
     #q1b()
+    print "Question 2"
     q2()
+    print "Question 3"
     q3()
+    print "Question 4"
+    #q4()
+    #q1b_rmse()
 
+#Get model that is chosen
 def get_model():
     r = global_rseed
     k = global_k
